@@ -1,0 +1,11 @@
+sumolib
+traci
+streamlit
+numpy
+pandas
+matplotlib
+streamlit
+networkx
+deap
+sumolib
+traci

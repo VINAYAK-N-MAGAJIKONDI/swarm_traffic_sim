@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Vehicle routes for SUMO simulation -->
+<!-- Define your vehicle types, flows, and routes here -->
+<routes>
+    <vType id="car" accel="1.0" decel="4.5" sigma="0.5" length="5" minGap="2.5" maxSpeed="13.9" color="1,0,0"/>
+    <route id="r0" edges="A0A1 A1A2 A2B2 B2C2 C2C1"/>
+    <vehicle id="veh0" type="car" route="r0" depart="0"/>
+    <vehicle id="veh1" type="car" route="r0" depart="10"/>
+</routes>
