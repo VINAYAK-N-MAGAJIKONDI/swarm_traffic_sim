@@ -25,5 +25,5 @@ This project simulates urban traffic using swarm intelligence algorithms (PSO fo
    ```
 4. (Optional) Launch dashboard:
    ```bash
-   streamlit run dashboard/app.py
+   
    ```

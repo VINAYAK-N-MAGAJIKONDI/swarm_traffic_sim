@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2025-08-02 19:14:45.886210 by randomTrips.py v1_24_0+0000-b72eb3fabc8
+<configuration>
+    <net-file value="map.net.xml"/>
+    <output-trip-file value="map.rou.xml"/>
+    <end value="5.0"/>
+</configuration>
+-->
+
+<!-- generated on 2025-08-02 19:14:45 by Eclipse SUMO duarouter Version 1.24.0
+<duarouterConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/duarouterConfiguration.xsd">
+
+    <input>
+        <net-file value="map.net.xml"/>
+        <route-files value="map.rou.xml"/>
+    </input>
+
+    <output>
+        <output-file value="routes.rou.xml"/>
+        <alternatives-output value="NUL"/>
+    </output>
+
+    <time>
+        <begin value="0"/>
+        <end value="5.0"/>
+    </time>
+
+    <report>
+        <no-warnings value="true"/>
+        <ignore-errors value="true"/>
+        <no-step-log value="true"/>
+    </report>
+
+</duarouterConfiguration>
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <vehicle id="0" depart="0.00">
+        <route edges="-151809046 151809046 -151809049 -151809004#1"/>
+    </vehicle>
+    <vehicle id="1" depart="1.00">
+        <route edges="151809049 -151809046 151809004#1"/>
+    </vehicle>
+    <vehicle id="2" depart="2.00">
+        <route edges="489040258 1150344679#2 1150344679#3 -793850722 792871854 -150633020#1"/>
+    </vehicle>
+    <vehicle id="3" depart="3.00">
+        <route edges="150633026 150632928 -150633020#4 -150633020#3 -150633020#2 -150633020#1 150633020#1"/>
+    </vehicle>
+    <vehicle id="4" depart="4.00">
+        <route edges="-150633020#7 -150633020#6 -150633020#5 -150633020#4 -150633020#3 150633020#3"/>
+    </vehicle>
+</routes>
