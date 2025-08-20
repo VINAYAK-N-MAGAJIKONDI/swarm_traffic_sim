@@ -9,6 +9,8 @@ import subprocess
 import webbrowser
 import shutil
 import time
+import sumolib
+from xml.etree import ElementTree as ET
 
 SUMO_BINARY = "sumo-gui"  # Use "sumo" for CLI mode
 CONFIG = "sumo_sim/simulation.sumocfg"
@@ -96,6 +98,14 @@ def check_errors():
         if "edge" in log and "not known" in log:
             print("ERROR: Route references unknown edge. Check your routes.rou.xml.")
 
+def get_node_from_edge(edge_id, net_file="sumo_sim/map.net.xml", source=True):
+    net = sumolib.net.readNet(net_file)
+    edge = net.getEdge(edge_id)
+    if source:
+        return edge.getFromNode().getID()
+    else:
+        return edge.getToNode().getID()
+    
 def start_simulation(algorithm="PSO", param=10):
     start_sumo(SUMO_BINARY, CONFIG)
     if algorithm == "PSO":
@@ -114,8 +124,18 @@ def start_simulation(algorithm="PSO", param=10):
             timings = controller.optimize_signal_timing(traffic_data)
         elif isinstance(controller, ACORouting):
             if step == 0:
-                route = controller.run('A0', 'C2')
-                print(f"ACO route from A0 to C2: {route}")
+            
+                # Use the first trip from map.rou.xml as an example
+                trips = ET.parse("sumo_sim/map.rou.xml").findall("trip")
+                if trips:
+                    from_edge = trips[0].attrib["from"]
+                    to_edge = trips[0].attrib["to"]
+                    start_node = get_node_from_edge(from_edge, source=True)
+                    end_node = get_node_from_edge(to_edge, source=False)
+                    route = controller.run(start_node, end_node)
+                    print(f"ACO route from {start_node} to {end_node}: {route}")
+                else:
+                    print("No trips found in map.rou.xml")
         avg_vehicles = sum([v['vehicle_count'] for v in traffic_data.values()]) / len(traffic_data)
         avg_occupancy = sum([v['occupancy'] for v in traffic_data.values()]) / len(traffic_data)
         metrics.append({'step': step, 'avg_vehicles': avg_vehicles, 'avg_occupancy': avg_occupancy, 'algorithm': algorithm, 'param': param})
