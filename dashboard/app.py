@@ -10,8 +10,17 @@ def main():
     # Load metrics
     try:
         df = pd.read_csv("results\\logs\\metrics.csv")
-        st.line_chart(df.set_index(df.columns[0]))
-        st.bar_chart(df.mean(numeric_only=True))
+        st.subheader("Simulation Metrics Table")
+        st.dataframe(df, use_container_width=True)
+
+
+
+        st.subheader("Grouped by Algorithm & Param")
+        grouped = df.groupby(['algorithm', 'param']).agg({
+            'avg_vehicles': ['mean', 'min', 'max'],
+            'avg_occupancy': ['mean', 'min', 'max']
+        }).reset_index()
+        st.dataframe(grouped, use_container_width=True)
     except Exception as e:
         st.warning(f"Metrics not found or error: {e}")
 
