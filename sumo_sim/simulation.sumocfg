@@ -2,10 +2,8 @@
 <configuration>
     <input>
         <net-file value="map.net.xml"/>
-        <!-- <route-files value="routes.rou.xml"/> -->
         <additional-files value="traffic.add.xml"/>
         <route-files value="map.rou.xml"/>  
-
     </input>
     <time>
         <begin value="0"/>
