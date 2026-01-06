@@ -4,7 +4,7 @@ import numpy as np
 from sumolib import net
 
 class ACORouting:
-    def __init__(self, net_file='sumo_sim/map.net.xml', num_ants=10, num_iterations=50, alpha=1, beta=3, rho=0.5, q=1.0):
+    def __init__(self, net_file='sumo_sim/grid.net.xml', num_ants=10, num_iterations=50, alpha=1, beta=3, rho=0.5, q=1.0):
         self.graph = self.load_sumo_network(net_file)
         self.num_ants = num_ants
         self.num_iterations = num_iterations
@@ -23,8 +23,39 @@ class ACORouting:
             from_node = edge.getFromNode().getID()
             to_node = edge.getToNode().getID()
             length = edge.getLength()
-            G.add_edge(from_node, to_node, weight=length)
+            G.add_edge(from_node, to_node, weight=length, id=edge.getID(), original_length=length)
         return G
+
+    def update_weights(self, traffic_data):
+        """
+        Dynamically update graph weights based on real-time traffic.
+        new_weight = length * (1 + alpha * occupancy)
+        """
+        for edge in self.graph.edges():
+            u, v = edge
+            # edge in networkx is (u, v). In sumo it's a string ID.
+            # We need a way to map (u,v) back to edge_id or vice versa.
+            # In load_sumo_network we didn't save edge_id. 
+            # FIX: We will rely on traffic_data keys being edge_ids
+            # However, mapping graph edge -> sumo edge ID is tricky without lookup.
+            # For this simplified project, we skip complex mapping and assume 
+            # we can find the edge by iterating traffic data? No, that's slow.
+            
+            # Alternative: Just penalize all edges randomly? No.
+            # Better: In load_sumo_network store edge_id as attribute.
+            pass
+            
+        # Re-iterating correctly:
+        # We need to access the edge attributes
+        for u, v, data in self.graph.edges(data=True):
+            # If we stored edge_id in data...
+            edge_id = data.get("id") 
+            if edge_id and edge_id in traffic_data:
+                occ = traffic_data[edge_id].get("occupancy", 0)
+                length = data.get("original_length", 100)
+                # Traffic Cost Function
+                new_weight = length * (1.0 + 10.0 * occ) 
+                self.graph[u][v]["weight"] = new_weight
 
     def run(self, start_node, end_node):
         best_path = None
@@ -93,7 +124,7 @@ class ACORouting:
                 edge = (path[i], path[i + 1])
                 self.pheromone[edge] += self.q / cost
 
-def calculate_optimal_route(start, end, net_file='sumo_sim/map.net.xml'):
+def calculate_optimal_route(start, end, net_file='sumo_sim/grid.net.xml'):
     aco = ACORouting(net_file=net_file)
     return aco.run(start, end)
 

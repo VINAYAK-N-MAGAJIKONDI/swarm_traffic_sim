@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <input>
-        <net-file value="map.net.xml"/>
+        <net-file value="grid.net.xml"/>
         <!-- <route-files value="routes.rou.xml"/> -->
         <additional-files value="traffic.add.xml"/>
-        <route-files value="map.rou.xml"/>  
+        <route-files value="grid.rou.xml"/>  
 
     </input>
     <time>
         <begin value="0"/>
-        <end value="1000"/>
+        <end value="100000"/>
     </time>
 </configuration>

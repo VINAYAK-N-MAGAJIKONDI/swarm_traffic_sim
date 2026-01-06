@@ -9,33 +9,57 @@ class PSOController:
         self.num_iterations = num_iterations
 
     def optimize(self, traffic_data):
-        # Example: optimize signal timings for intersections
-        num_signals = len(traffic_data)
+        # Optimize signal timings based on traffic data
+        edge_ids = list(traffic_data.keys())
+        num_signals = len(edge_ids)
+        
         particles = np.random.uniform(10, 60, (self.num_particles, num_signals))  # signal timings
         velocities = np.zeros_like(particles)
         personal_best = particles.copy()
-        personal_best_scores = np.array([self.fitness(p, traffic_data) for p in particles])
+        
+        # Calculate initial fitness
+        personal_best_scores = np.array([self.fitness(p, traffic_data, edge_ids) for p in particles])
+        
         global_best = personal_best[np.argmin(personal_best_scores)]
         global_best_score = np.min(personal_best_scores)
+        
         w, c1, c2 = 0.5, 1.5, 1.5
+        
         for _ in range(self.num_iterations):
             for i in range(self.num_particles):
                 r1, r2 = np.random.rand(), np.random.rand()
                 velocities[i] = w * velocities[i] + c1 * r1 * (personal_best[i] - particles[i]) + c2 * r2 * (global_best - particles[i])
                 particles[i] += velocities[i]
-                score = self.fitness(particles[i], traffic_data)
+                
+                # Clip particles to valid range [5, 60] seconds
+                particles[i] = np.clip(particles[i], 5, 60)
+                
+                score = self.fitness(particles[i], traffic_data, edge_ids)
                 if score < personal_best_scores[i]:
                     personal_best[i] = particles[i]
                     personal_best_scores[i] = score
+            
             best_idx = np.argmin(personal_best_scores)
             if personal_best_scores[best_idx] < global_best_score:
                 global_best = personal_best[best_idx]
                 global_best_score = personal_best_scores[best_idx]
+                
         return global_best
 
-    def fitness(self, timings, traffic_data):
-        # Dummy fitness: sum of timings (replace with real wait time calculation)
-        return np.sum(timings)
+    def fitness(self, timings, traffic_data, edge_ids):
+        # Objective: Maximize Green Time for edges with high Waiting, Minimize for empty edges
+        # Implementation: Cost = -1 * sum(Time * (Waiting + 10*Queue))
+        score = 0
+        for i, edge_id in enumerate(edge_ids):
+            data = traffic_data[edge_id]
+            w = data.get('waiting_time', 0)
+            q = data.get('halting_number', 0)
+            t = timings[i]
+            
+            # Simple "Pressure" heuristic
+            score += -1.0 * t * (w + 10 * q)
+            
+        return score
 
     def optimize_signal_timing(self, traffic_data):
         return self.optimize(traffic_data)
