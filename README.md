@@ -6,7 +6,7 @@ This project simulates urban traffic using swarm intelligence algorithms (PSO fo
 - `sumo_sim/`: SUMO network, routes, and config files
 - `controllers/`: PSO and ACO algorithm implementations
 - `utils/`: Helper functions for SUMO/TraCI
-- `dashboard/`: Streamlit dashboard (optional)
+- `dashboard/`: Streamlit dashboard 
 - `results/logs/`: Output data
 - `run_simulation.py`: Main script to run the simulation
 
