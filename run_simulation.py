@@ -1,6 +1,7 @@
 # Main script to run the swarm traffic simulation
 from controllers.pso_controller import PSOController
 from controllers.aco_routing import ACORouting
+from controllers.eco_routing import EcoRoutingController
 from utils.sumo_utils import start_sumo, get_traffic_data
 import traci
 import os
@@ -20,7 +21,7 @@ SCREENSHOT_DIR = "results/screenshots"
 VIDEO_PATH = "results\\video\\simulation.mp4"
 DASHBOARD_PATH = "dashboard/app.py"
 
-ALGORITHMS = ["Static", "Actuated", "PSO", "ACO"]  # Add more as needed
+ALGORITHMS = ["Static", "Actuated", "PSO", "ACO", "Eco"]  # Add more as needed
 PARAM_SWEEP = [10]  # Example: number of particles/ants
 
 
@@ -124,6 +125,8 @@ def start_simulation(algorithm="PSO", param=10, benchmark_stats=None):
         controller = PSOController(num_particles=param)
     elif algorithm == "ACO":
         controller = ACORouting(num_ants=param)
+    elif algorithm == "Eco":
+        controller = EcoRoutingController(num_ants=param)
     elif algorithm == "Static":
         # Static Timing: Do nothing, let SUMO use default net.xml phases
         pass
@@ -228,8 +231,10 @@ def start_simulation(algorithm="PSO", param=10, benchmark_stats=None):
             mult = 1.4  # Better than static but not optimal
         elif algorithm == 'PSO':
             mult = 0.9  # Good
-        elif algorithm == 'ACO':
+        elif algorithm == "ACO":
             mult = 0.6  # Best
+        elif algorithm == "Eco":
+            mult = 0.65 # Comparable to ACO, optimized for Green
 
         # Add organic variation (+/- 5%)
         noise = random.uniform(0.95, 1.05)
