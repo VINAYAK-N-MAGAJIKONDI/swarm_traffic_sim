@@ -3,6 +3,7 @@ from controllers.pso_controller import PSOController
 from controllers.aco_routing import ACORouting
 from controllers.eco_routing import EcoRoutingController
 from utils.sumo_utils import start_sumo, get_traffic_data
+from utils.incident_manager import IncidentManager
 import traci
 import os
 import csv
@@ -113,6 +114,7 @@ from utils.benchmark_stats import BenchmarkStats
 
 def start_simulation(algorithm="PSO", param=10, benchmark_stats=None):
     start_sumo(SUMO_BINARY, CONFIG)
+    incident_manager = IncidentManager(start_step=200, duration=100)
     
     # DEBUG
     print("Simulation started.")
@@ -154,6 +156,7 @@ def start_simulation(algorithm="PSO", param=10, benchmark_stats=None):
         except traci.exceptions.FatalTraCIError:
             print("Simulation ended by user (window closed).")
             break
+        incident_manager.update(step)
 
         traffic_data = get_traffic_data()
         
