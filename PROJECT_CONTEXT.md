@@ -49,3 +49,56 @@ The user is upgrading this from a basic project to a "Distinction-Level" Thesis.
 ## 5. How to Run
 1.  **Sim:** `python run_simulation.py`
 2.  **Dash:** `streamlit run dashboard/app.py`
+
+
+Running Static baseline...
+Simulation started.
+Loaded Routes: ('!0', '!1')
+Traffic Lights: ()
+[INCIDENT] Vehicle 8 stopped.
+[INCIDENT CLEARED] Vehicle 8 released.
+All vehicles have arrived at step 8696. Stopping simulation.
+Simulation complete for Static (param=0). Metrics saved.
+Running Actuated baseline...
+Simulation started.
+Loaded Routes: ('!0', '!1')
+Traffic Lights: ()
+[INCIDENT] Vehicle 146 stopped.
+[INCIDENT CLEARED] Vehicle 146 released.
+All vehicles have arrived at step 8504. Stopping simulation.
+Simulation complete for Actuated (param=0). Metrics saved.
+Running PSO with param=10
+Simulation started.
+Loaded Routes: ('!0', '!1')
+Traffic Lights: ()
+[INCIDENT] Vehicle 362 stopped.
+[INCIDENT CLEARED] Vehicle 362 released.
+All vehicles have arrived at step 8511. Stopping simulation.
+Simulation complete for PSO (param=10). Metrics saved.
+Running ACO with param=10
+Simulation started.
+Loaded Routes: ('!0', '!1')
+Traffic Lights: ()
+[INCIDENT] Vehicle 84 stopped.
+[INCIDENT CLEARED] Vehicle 84 released.
+All vehicles have arrived at step 8873. Stopping simulation.
+Simulation complete for ACO (param=10). Metrics saved.
+Running Eco with param=10
+Simulation started.
+Loaded Routes: ('!0', '!1')
+Traffic Lights: ()
+[INCIDENT] Vehicle 214 stopped.
+[INCIDENT CLEARED] Vehicle 214 released.
+All vehicles have arrived at step 8628. Stopping simulation.
+Simulation complete for Eco (param=10). Metrics saved.
+
+==================================================
+BENCHMARK SUMMARY
+==================================================
+Algorithm  Param  Avg Waiting Time  Avg Queue Length      Avg CO2
+   Static      0       1093.074443          9.407872 16039.554372
+ Actuated      0        881.006759          7.443258 12628.951053
+      PSO     10        541.260436          4.659012  7959.237245
+      ACO     10        359.183641          3.062766  5207.014800
+      Eco     10        394.541735          3.432414  5853.693975
+==================================================
