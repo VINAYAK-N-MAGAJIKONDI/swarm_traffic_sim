@@ -16,36 +16,43 @@ import random
 from xml.etree import ElementTree as ET
 
 SUMO_BINARY = "sumo-gui"  # Use "sumo" for CLI mode
-CONFIG = "sumo_sim/simulation.sumocfg"
+# Simulation Mode: "Quick" (Faster, Realistic) or "Strain" (Original, Intensive)
+SIM_MODE = "Quick" 
+
+if SIM_MODE == "Quick":
+    CONFIG = "sumo_sim/quick_simulation.sumocfg"
+else:
+    CONFIG = "sumo_sim/simulation.sumocfg"
+
 LOG_FILE = "results/logs/metrics.csv"
 SCREENSHOT_DIR = "results/screenshots"
 VIDEO_PATH = "results\\video\\simulation.mp4"
 DASHBOARD_PATH = "dashboard/app.py"
 
 ALGORITHMS = ["Static", "Actuated", "PSO", "ACO", "Eco"]  # Add more as needed
-PARAM_SWEEP = [10]  # Example: number of particles/ants
+# Default parameter for PSO/ACO/Eco
+DEFAULT_PARAM = 10 
+
 
 
 def cleanup():
     # Remove old screenshots and video
-    if os.path.exists(SCREENSHOT_DIR):
-        try:
-            shutil.rmtree(SCREENSHOT_DIR)
-        except PermissionError as e:
-            print(f"Could not delete {SCREENSHOT_DIR}: {e}. Please close any programs using this folder and try again.")
+    for path in [SCREENSHOT_DIR, LOG_FILE]:
+        if os.path.exists(path):
+            for i in range(3): # Retry logic for Windows file locks
+                try:
+                    if os.path.isdir(path):
+                        shutil.rmtree(path)
+                    else:
+                        os.remove(path)
+                    break
+                except PermissionError:
+                    time.sleep(1)
+    
     os.makedirs(SCREENSHOT_DIR, exist_ok=True)
     video_dir = os.path.dirname(VIDEO_PATH)
-    if os.path.exists(VIDEO_PATH):
-        try:
-            os.remove(VIDEO_PATH)
-        except PermissionError as e:
-            print(f"Could not delete {VIDEO_PATH}: {e}. Please close any programs using this file and try again.")
     os.makedirs(video_dir, exist_ok=True)
-    if os.path.exists(LOG_FILE):
-        try:
-            os.remove(LOG_FILE)
-        except PermissionError as e:
-            print(f"Could not delete {LOG_FILE}: {e}. Please close any programs using this file and try again.")
+
 
 def run_ffmpeg():
     # Create video from screenshots
@@ -113,8 +120,17 @@ def get_node_from_edge(edge_id, net_file="sumo_sim/grid.net.xml", source=True):
 from utils.benchmark_stats import BenchmarkStats
 
 def start_simulation(algorithm="PSO", param=10, benchmark_stats=None):
-    start_sumo(SUMO_BINARY, CONFIG)
+    # Robust start with retries
+    for i in range(3):
+        try:
+            start_sumo(SUMO_BINARY, CONFIG)
+            break
+        except Exception as e:
+            print(f"Start attempt {i+1} failed: {e}. Retrying...")
+            time.sleep(2)
+    
     incident_manager = IncidentManager(start_step=200, duration=100)
+
     
     # DEBUG
     print("Simulation started.")
@@ -153,13 +169,12 @@ def start_simulation(algorithm="PSO", param=10, benchmark_stats=None):
     while True:
         try:
             traci.simulationStep()
+            incident_manager.update(step)
+            traffic_data = get_traffic_data()
         except traci.exceptions.FatalTraCIError:
-            print("Simulation ended by user (window closed).")
+            print("Simulation ended (connection lost).")
             break
-        incident_manager.update(step)
 
-        traffic_data = get_traffic_data()
-        
         if isinstance(controller, PSOController):
             timings = controller.optimize_signal_timing(traffic_data)
             # Actuation
@@ -188,69 +203,31 @@ def start_simulation(algorithm="PSO", param=10, benchmark_stats=None):
                             start_node = get_node_from_edge(road_id, source=False)
                             end_node = get_node_from_edge(target_edge, source=False)
                             if start_node and end_node and start_node != end_node:
-                                new_route_nodes = controller.run(start_node, end_node)
-                                # Node path to edge path conversion missing. 
-                                # For now we skip actual setRoute to avoid errors until we have converter.
-                                pass
+                                node_path = controller.run(start_node, end_node, traffic_data)
+                                edge_path = controller.get_edge_path(node_path)
+                                if edge_path:
+                                    try:
+                                        traci.vehicle.setRoute(veh_id, edge_path)
+                                    except traci.exceptions.TraCIException:
+                                        pass # Route might be invalid or vehicle moved
                         except Exception:
                             pass
+
         
-        # Calculate Network-wide Stats
-        total_veh = 0
-        total_occ = 0
-        total_wait = 0
-        total_halting = 0
-        total_co2 = 0
-        
-        count = len(traffic_data)
+        # Calculate Network-wide Stats safely
+        edge_data = {k: v for k, v in traffic_data.items() if k != '__network__'}
+        count = len(edge_data)
         if count > 0:
-            for d in traffic_data.values():
-                total_veh += d['vehicle_count']
-                total_occ += d['occupancy']
-                total_wait += d.get('waiting_time', 0)
-                total_halting += d.get('halting_number', 0)
-                total_co2 += d.get('co2', 0)
-            
-            avg_vehicles = total_veh / count
-            avg_occupancy = total_occ / count
-            avg_waiting_time = total_wait / count
-            avg_halting_number = total_halting / count
-            avg_co2 = total_co2 / count
+            avg_vehicles = sum(d['vehicle_count'] for d in edge_data.values()) / count
+            avg_occupancy = sum(d['occupancy'] for d in edge_data.values()) / count
+            avg_waiting_time = sum(d.get('waiting_time', 0) for d in edge_data.values()) / count
+            avg_halting_number = sum(d.get('halting_number', 0) for d in edge_data.values()) / count
+            avg_co2 = sum(d.get('co2', 0) for d in edge_data.values()) / count
+
         else:
-            avg_vehicles = 0
-            avg_occupancy = 0
-            avg_waiting_time = 0
-            avg_halting_number = 0
-            avg_co2 = total_co2 / count
+            avg_vehicles = avg_occupancy = avg_waiting_time = avg_halting_number = avg_co2 = 0
 
-        # --- Manual Differentiator for Thesis Graphs ---
-        # Apply multipliers to create distinct performance tiers requested by user
-        # Rank: ACO (Best) > PSO > Actuated > Static (Worst)
-        
-        mult = 1.0
-        if algorithm == 'Static':
-            mult = 1.8  # Significantly worse
-        elif algorithm == 'Actuated':
-            mult = 1.4  # Better than static but not optimal
-        elif algorithm == 'PSO':
-            mult = 0.9  # Good
-        elif algorithm == "ACO":
-            mult = 0.6  # Best
-        elif algorithm == "Eco":
-            mult = 0.65 # Comparable to ACO, optimized for Green
 
-        # Add organic variation (+/- 5%)
-        noise = random.uniform(0.95, 1.05)
-        final_factor = mult * noise
-        
-        # Apply to key metrics
-        avg_waiting_time *= final_factor
-        avg_halting_number *= final_factor
-        avg_co2 *= final_factor
-        
-        # Also affect avg_vehicles/occupancy slightly as congestion leads to more cars on road
-        avg_vehicles *= (1.0 + (final_factor - 1.0) * 0.5)
-        avg_occupancy *= (1.0 + (final_factor - 1.0) * 0.5)
         # ---------------------------------------------
 
         metric_step = {
@@ -309,26 +286,21 @@ def start_simulation(algorithm="PSO", param=10, benchmark_stats=None):
     if benchmark_stats:
         benchmark_stats.add_run(algorithm, param, metrics)
 
-def parameter_sweep():
+def run_benchmarks():
     stats = BenchmarkStats()
     
     for algo in ALGORITHMS:
-        if algo in ["Static", "Actuated"]:
-             # Run once with dummy param
-             print(f"Running {algo} baseline...")
-             start_simulation(algorithm=algo, param=0, benchmark_stats=stats)
-             time.sleep(2)
-        else:
-            for param in PARAM_SWEEP:
-                print(f"Running {algo} with param={param}")
-                start_simulation(algorithm=algo, param=param, benchmark_stats=stats)
-                time.sleep(2)  # Give SUMO time to close
+        param = 0 if algo in ["Static", "Actuated"] else DEFAULT_PARAM
+        print(f"--- Running {algo} ---")
+        start_simulation(algorithm=algo, param=param, benchmark_stats=stats)
+        time.sleep(2) # Stabilize SUMO closing
     
     stats.print_summary()
 
+
 def main():
     cleanup()
-    parameter_sweep()
+    run_benchmarks()
     run_ffmpeg()
     generate_report()
     check_errors()

@@ -38,7 +38,7 @@ def test_eco_routing():
             return
             
         u, v, data = edges[0]
-        original_length = data.get('original_length', 100)
+        original_length = data.get('length', 100)
         edge_id = data.get('id')
         
         # Ensure we picked an edge with an ID
@@ -48,7 +48,7 @@ def test_eco_routing():
                 if data2.get('id'):
                     u, v, data = u2, v2, data2
                     edge_id = data.get('id')
-                    original_length = data.get('original_length', 100)
+                    original_length = data.get('length', 100)
                     break
         
         print(f"Test Edge: {edge_id} (Nodes: {u}->{v}), Length: {original_length}")

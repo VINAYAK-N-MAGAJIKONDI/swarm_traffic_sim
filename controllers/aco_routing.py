@@ -4,84 +4,82 @@ import numpy as np
 from sumolib import net
 
 class ACORouting:
-    def __init__(self, net_file='sumo_sim/grid.net.xml', num_ants=10, num_iterations=50, alpha=1, beta=3, rho=0.5, q=1.0):
+    def __init__(self,
+                 net_file='sumo_sim/grid.net.xml',
+                 num_ants=40,
+                 num_iterations=100,
+                 alpha_min=1.0,
+                 alpha_max=2.5,
+                 beta=5.0,
+                 rho=0.2,
+                 Q=50,
+                 lambda_congestion=2.0,
+                 lambda_signal=1.5,
+                 tau_min=0.01,
+                 tau_max=10):
+
         self.graph = self.load_sumo_network(net_file)
         self.num_ants = num_ants
         self.num_iterations = num_iterations
-        self.alpha = alpha  # influence of pheromone
-        self.beta = beta    # influence of heuristic (1/distance)
-        self.rho = rho      # evaporation rate
-        self.q = q          # pheromone deposit factor
+        self.alpha_min = alpha_min
+        self.alpha_max = alpha_max
+        self.beta = beta
+        self.rho = rho
+        self.Q = Q
+        self.lambda_congestion = lambda_congestion
+        self.lambda_signal = lambda_signal
+        self.tau_min = tau_min
+        self.tau_max = tau_max
 
-        # Initialize pheromone on all edges
         self.pheromone = {edge: 1.0 for edge in self.graph.edges()}
+        self.best_global_cost = float("inf")
+        self.best_global_path = None
 
     def load_sumo_network(self, net_file):
         sumo_net = net.readNet(net_file)
         G = nx.DiGraph()
+
         for edge in sumo_net.getEdges():
-            from_node = edge.getFromNode().getID()
-            to_node = edge.getToNode().getID()
-            length = edge.getLength()
-            G.add_edge(from_node, to_node, weight=length, id=edge.getID(), original_length=length)
+            G.add_edge(
+                edge.getFromNode().getID(),
+                edge.getToNode().getID(),
+                id=edge.getID(),
+                length=edge.getLength(),
+                speed=edge.getSpeed(),
+                capacity=max(edge.getLaneNumber() * 1800, 1)
+            )
         return G
 
     def update_weights(self, traffic_data):
-        """
-        Dynamically update graph weights based on real-time traffic.
-        new_weight = length * (1 + alpha * occupancy)
-        """
-        for edge in self.graph.edges():
-            u, v = edge
-            # edge in networkx is (u, v). In sumo it's a string ID.
-            # We need a way to map (u,v) back to edge_id or vice versa.
-            # In load_sumo_network we didn't save edge_id. 
-            # FIX: We will rely on traffic_data keys being edge_ids
-            # However, mapping graph edge -> sumo edge ID is tricky without lookup.
-            # For this simplified project, we skip complex mapping and assume 
-            # we can find the edge by iterating traffic data? No, that's slow.
-            
-            # Alternative: Just penalize all edges randomly? No.
-            # Better: In load_sumo_network store edge_id as attribute.
-            pass
-            
-        # Re-iterating correctly:
-        # We need to access the edge attributes
+        """Calculates dynamic costs based on IEEE standard: time, normalized queue, and signals."""
         for u, v, data in self.graph.edges(data=True):
-            # If we stored edge_id in data...
-            edge_id = data.get("id") 
-            if edge_id and edge_id in traffic_data:
-                occ = traffic_data[edge_id].get("occupancy", 0)
-                length = data.get("original_length", 100)
-                # Traffic Cost Function
-                new_weight = length * (1.0 + 10.0 * occ) 
-                self.graph[u][v]["weight"] = new_weight
+            edge_id = data["id"]
+            length = data["length"]
+            speed_limit = data["speed"]
+            capacity = data["capacity"]
 
-    def run(self, start_node, end_node):
-        best_path = None
-        best_cost = float('inf')
+            state = traffic_data.get(edge_id, {})
+            mean_speed = max(state.get("mean_speed", speed_limit), 0.1)
+            queue = state.get("halting_number", 0)
+            signal_delay = state.get("signal_delay", 0)
 
-        for iteration in range(self.num_iterations):
-            all_paths = []
-            all_costs = []
+            travel_time = length / mean_speed
+            congestion_term = self.lambda_congestion * (queue / capacity)
 
-            for _ in range(self.num_ants):
-                path = self.construct_solution(start_node, end_node)
-                if path:
-                    cost = self.calculate_path_cost(path)
-                    all_paths.append(path)
-                    all_costs.append(cost)
+            total_cost = (
+                travel_time
+                + congestion_term
+                + self.lambda_signal * signal_delay
+            )
+            self.graph[u][v]["weight"] = total_cost
 
-                    if cost < best_cost:
-                        best_cost = cost
-                        best_path = path
+    def _adaptive_alpha(self, iteration):
+        return self.alpha_min + (
+            (self.alpha_max - self.alpha_min)
+            * iteration / self.num_iterations
+        )
 
-            self.evaporate_pheromone()
-            self.update_pheromone(all_paths, all_costs)
-
-        return best_path
-
-    def construct_solution(self, start, end):
+    def construct_solution(self, start, end, alpha):
         path = [start]
         visited = set()
         current = start
@@ -89,42 +87,102 @@ class ACORouting:
         while current != end:
             visited.add(current)
             neighbors = list(self.graph.successors(current))
-            probabilities = []
+            desirability = []
 
             for neighbor in neighbors:
                 if neighbor in visited:
-                    probabilities.append(0)
+                    desirability.append(0)
                     continue
 
                 edge = (current, neighbor)
-                pheromone_level = self.pheromone[edge] ** self.alpha
-                heuristic = (1.0 / self.graph[current][neighbor].get("weight", 1.0)) ** self.beta
-                probabilities.append(pheromone_level * heuristic)
+                tau = self.pheromone[edge]
+                eta = 1.0 / self.graph[current][neighbor]["weight"]
+                desirability.append((tau ** alpha) * (eta ** self.beta))
 
-            if sum(probabilities) == 0:
-                return None  # Dead end
+            if sum(desirability) == 0:
+                return None
 
-            probabilities = [p / sum(probabilities) for p in probabilities]
-            next_node = random.choices(neighbors, weights=probabilities)[0]
+            probs = np.array(desirability)
+            probs /= probs.sum()
+
+            next_node = np.random.choice(neighbors, p=probs)
             path.append(next_node)
             current = next_node
 
         return path
 
-    def calculate_path_cost(self, path):
-        return sum(self.graph[path[i]][path[i + 1]].get("weight", 1.0) for i in range(len(path) - 1))
+    def calculate_cost(self, path):
+        return sum(
+            self.graph[path[i]][path[i+1]]["weight"]
+            for i in range(len(path)-1)
+        )
 
-    def evaporate_pheromone(self):
+    def update_pheromones(self, best_path, best_cost):
         for edge in self.pheromone:
             self.pheromone[edge] *= (1 - self.rho)
 
-    def update_pheromone(self, paths, costs):
-        for path, cost in zip(paths, costs):
-            for i in range(len(path) - 1):
-                edge = (path[i], path[i + 1])
-                self.pheromone[edge] += self.q / cost
+        if best_path:
+            for i in range(len(best_path)-1):
+                edge = (best_path[i], best_path[i+1])
+                self.pheromone[edge] += self.Q / best_cost
 
-def calculate_optimal_route(start, end, net_file='sumo_sim/grid.net.xml'):
+        for edge in self.pheromone:
+            self.pheromone[edge] = np.clip(
+                self.pheromone[edge],
+                self.tau_min,
+                self.tau_max
+            )
+
+    def run(self, start, end, traffic_data):
+        stagnation = 0
+
+        for iteration in range(self.num_iterations):
+            alpha = self._adaptive_alpha(iteration)
+            self.update_weights(traffic_data)
+
+            iteration_best_cost = float("inf")
+            iteration_best_path = None
+
+            for _ in range(self.num_ants):
+                path = self.construct_solution(start, end, alpha)
+                if path:
+                    cost = self.calculate_cost(path)
+
+                    if cost < iteration_best_cost:
+                        iteration_best_cost = cost
+                        iteration_best_path = path
+
+            if iteration_best_cost < self.best_global_cost:
+                self.best_global_cost = iteration_best_cost
+                self.best_global_path = iteration_best_path
+                stagnation = 0
+            else:
+                stagnation += 1
+
+            self.update_pheromones(iteration_best_path, iteration_best_cost)
+
+            if stagnation > 20:
+                # restart pheromone partially
+                for edge in self.pheromone:
+                    self.pheromone[edge] = 1.0
+                stagnation = 0
+
+        return self.best_global_path
+
+    def get_edge_path(self, node_path):
+        """Converts node sequence to edge sequence for SUMO."""
+        if not node_path: return None
+        edge_path = []
+        for i in range(len(node_path) - 1):
+            u = node_path[i]
+            v = node_path[i+1]
+            edge_path.append(self.graph[u][v]['id'])
+        return edge_path
+
+def calculate_optimal_route(start, end, traffic_data, net_file='sumo_sim/grid.net.xml'):
     aco = ACORouting(net_file=net_file)
-    return aco.run(start, end)
+    node_path = aco.run(start, end, traffic_data)
+    return aco.get_edge_path(node_path)
+
+
 

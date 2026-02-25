@@ -6,8 +6,23 @@ class EcoRoutingController(ACORouting):
     Eco-Routing Controller using Ant Colony Optimization.
     Optimizes for minimal CO2 emissions (HBEFA model) instead of travel time.
     """
-    def __init__(self, net_file='sumo_sim/grid.net.xml', num_ants=10, num_iterations=50, alpha=1, beta=3, rho=0.5, q=1.0):
-        super().__init__(net_file, num_ants, num_iterations, alpha, beta, rho, q)
+    def __init__(self,
+                 net_file='sumo_sim/grid.net.xml',
+                 num_ants=40,
+                 num_iterations=100,
+                 alpha_min=1.0,
+                 alpha_max=2.5,
+                 beta=5.0,
+                 rho=0.2,
+                 Q=50,
+                 lambda_congestion=2.0,
+                 lambda_signal=1.5,
+                 tau_min=0.01,
+                 tau_max=10):
+        super().__init__(net_file, num_ants, num_iterations, alpha_min, alpha_max, beta, rho, Q, lambda_congestion, lambda_signal, tau_min, tau_max)
+
+
+
 
     def update_weights(self, traffic_data):
         """
@@ -34,7 +49,8 @@ class EcoRoutingController(ACORouting):
                 # Fetch Real-time HBEFA CO2 emissions for the edge (total mg/s for all vehs)
                 total_co2 = edge_stats.get("co2", 0.0) 
                 veh_count = edge_stats.get("vehicle_count", 0)
-                length = data.get("original_length", 100.0) # meters
+                length = data.get("length", 100.0) # meters
+
                 
                 new_weight = length # Default to length if no info
 
